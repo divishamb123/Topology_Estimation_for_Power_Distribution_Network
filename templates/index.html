@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Power Grid Topology Identifier | MNIT Jaipur</title>
+    <meta name="description" content="AI-powered distribution network topology identification using deep learning — predicting BIBC and BCBV matrices from voltage and current sensor readings.">
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>⚡</text></svg>">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+
+    <!-- Loading Overlay -->
+    <div id="loading-overlay" class="loading-overlay">
+        <div class="spinner-ring">
+            <div></div><div></div><div></div><div></div>
+        </div>
+        <p>Running AI Prediction…</p>
+    </div>
+
+    <!-- ─── Header ────────────────────────────────────────── -->
+    <header id="main-header">
+        <div class="header-content">
+            <div class="logo-section">
+                <div class="logo-icon">⚡</div>
+                <div>
+                    <h1>Power Grid Topology Identifier</h1>
+                    <p class="header-subtitle">Deep Learning for BIBC &amp; BCBV Matrix Prediction — MNIT Jaipur</p>
+                </div>
+            </div>
+            <div class="header-right">
+                <div class="header-badge">
+                    <span class="badge-dot"></span>
+                    <span>Model Active</span>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <main>
+        <!-- ─── Controls ──────────────────────────────────── -->
+        <section id="controls" class="container">
+            <div class="control-panel glass-card">
+                <div class="controls-row">
+                    <div class="system-tabs" id="system-tabs">
+                        <button class="tab-btn active" data-system="5" id="tab-5">
+                            <span class="tab-icon">🔌</span>
+                            <span>5-Bus</span>
+                        </button>
+                        <button class="tab-btn" data-system="15" id="tab-15">
+                            <span class="tab-icon">🏭</span>
+                            <span>15-Bus</span>
+                        </button>
+                        <button class="tab-btn" data-system="18" id="tab-18">
+                            <span class="tab-icon">🌐</span>
+                            <span>18-Bus</span>
+                        </button>
+                    </div>
+                    <div class="sample-controls">
+                        <div class="input-group">
+                            <label for="sample-index">SAMPLE INDEX</label>
+                            <input type="number" id="sample-index" value="0" min="0" max="999">
+                        </div>
+                        <button id="predict-btn" class="btn-primary">
+                            <span>🔍</span> Analyze
+                        </button>
+                        <button id="random-btn" class="btn-secondary">
+                            <span>🎲</span> Random
+                        </button>
+                        <button id="custom-input-toggle" class="btn-outline-amber">
+                            <span>✏️</span> Custom Input
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Custom Input Panel (hidden by default) -->
+            <div id="custom-input-panel" class="custom-input-panel glass-card">
+                <h4>✏️ Paste Custom V/I Sensor Readings</h4>
+                <textarea id="custom-values" placeholder="Enter voltage and current values separated by spaces or commas.&#10;Example for 5-bus:  1.0  0.9845  0.9712  0.9688  0.9534  0.142  0.089  0.111  0.140&#10;&#10;Format: V1 V2 … Vn  I1 I2 … Im  (pad with zeros to 35 values for mixed systems)"></textarea>
+                <div class="custom-input-footer">
+                    <p class="hint">Values: V1…Vn (bus voltages in p.u.) followed by I1…Im (branch currents). Total 35 features for the model.</p>
+                    <button id="custom-predict-btn" class="btn-gradient-amber">
+                        <span>⚡</span> Predict
+                    </button>
+                </div>
+            </div>
+        </section>
+
+        <!-- ─── Metrics ───────────────────────────────────── -->
+        <section id="metrics" class="container">
+            <div class="metrics-grid">
+                <div class="metric-card glass-card" id="card-bibc-acc">
+                    <div class="metric-glow"></div>
+                    <div class="metric-icon">🎯</div>
+                    <div class="metric-value" id="bibc-accuracy">—</div>
+                    <div class="metric-label">BIBC Accuracy</div>
+                    <div class="metric-sublabel">Topology Identification</div>
+                </div>
+                <div class="metric-card glass-card" id="card-bcbv-mae">
+                    <div class="metric-glow"></div>
+                    <div class="metric-icon">📐</div>
+                    <div class="metric-value" id="bcbv-mae">—</div>
+                    <div class="metric-label">BCBV MAE</div>
+                    <div class="metric-sublabel">Impedance Error (Ω)</div>
+                </div>
+                <div class="metric-card glass-card" id="card-system">
+                    <div class="metric-glow"></div>
+                    <div class="metric-icon">🔌</div>
+                    <div class="metric-value" id="system-info">—</div>
+                    <div class="metric-label">System</div>
+                    <div class="metric-sublabel">Bus Configuration</div>
+                </div>
+                <div class="metric-card glass-card" id="card-topo">
+                    <div class="metric-glow"></div>
+                    <div class="metric-icon">🔗</div>
+                    <div class="metric-value" id="topo-info">—</div>
+                    <div class="metric-label">Topology</div>
+                    <div class="metric-sublabel"><span id="topo-match-badge"></span></div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ─── Sensor Data ───────────────────────────────── -->
+        <section id="sensor-section" class="container">
+            <h2 class="section-title"><span class="section-icon">📡</span> Input Sensor Data</h2>
+            <div class="chart-grid-2">
+                <div class="chart-card glass-card">
+                    <h3>Bus Voltage Profile</h3>
+                    <div id="voltage-chart" class="chart-container"></div>
+                </div>
+                <div class="chart-card glass-card">
+                    <h3>Branch Current Magnitudes</h3>
+                    <div id="current-chart" class="chart-container"></div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ─── BIBC Matrices ─────────────────────────────── -->
+        <section id="bibc-section" class="container">
+            <h2 class="section-title"><span class="section-icon">🧠</span> BIBC Matrix — Topology Identification</h2>
+            <p class="section-desc">The Bus-Injection to Branch-Current matrix encodes the tree topology of the distribution network. A value of 1 means that branch carries the injected current from that bus.</p>
+            <div class="chart-grid-2">
+                <div class="chart-card glass-card">
+                    <h3>Ground Truth BIBC</h3>
+                    <div id="true-bibc-chart" class="chart-container-tall"></div>
+                </div>
+                <div class="chart-card glass-card">
+                    <h3>AI Predicted BIBC</h3>
+                    <div id="pred-bibc-chart" class="chart-container-tall"></div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ─── BCBV Matrices ─────────────────────────────── -->
+        <section id="bcbv-section" class="container">
+            <h2 class="section-title"><span class="section-icon">⚡</span> BCBV Matrix — Impedance Estimation</h2>
+            <p class="section-desc">The Branch-Current to Bus-Voltage matrix maps branch currents to voltage drops. Active entries represent the impedance (in Ω) of each branch along the path from the slack bus.</p>
+            <div class="chart-grid-2">
+                <div class="chart-card glass-card">
+                    <h3>Ground Truth BCBV (Ω)</h3>
+                    <div id="true-bcbv-chart" class="chart-container-tall"></div>
+                </div>
+                <div class="chart-card glass-card">
+                    <h3>AI Predicted BCBV (Ω)</h3>
+                    <div id="pred-bcbv-chart" class="chart-container-tall"></div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ─── Topology Graphs ───────────────────────────── -->
+        <section id="topology-section" class="container">
+            <h2 class="section-title"><span class="section-icon">🌐</span> Network Topology Reconstruction</h2>
+            <p class="section-desc">The predicted BIBC matrix is reverse-engineered into a physical node-and-branch graph, showing how the AI reconstructs the distribution network layout.</p>
+            <div class="chart-grid-2">
+                <div class="chart-card glass-card topology-card">
+                    <h3>True Physical Layout</h3>
+                    <div id="true-topology" class="network-container"></div>
+                </div>
+                <div class="chart-card glass-card topology-card">
+                    <h3>AI Reconstructed Layout</h3>
+                    <div id="pred-topology" class="network-container"></div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ─── Model Architecture ────────────────────────── -->
+        <section id="model-section" class="container">
+            <h2 class="section-title"><span class="section-icon">🏗️</span> Model Architecture</h2>
+            <div class="arch-grid">
+                <div class="arch-card glass-card">
+                    <div class="arch-icon">📥</div>
+                    <div class="arch-label">Input</div>
+                    <div class="arch-detail">35 features<br><span class="text-muted">V₁…V₁₈ + I₁…I₁₇</span></div>
+                </div>
+                <div class="arch-arrow">→</div>
+                <div class="arch-card glass-card">
+                    <div class="arch-icon">🔄</div>
+                    <div class="arch-label">Encoder</div>
+                    <div class="arch-detail">512 neurons<br><span class="text-muted">BatchNorm + ReLU</span></div>
+                </div>
+                <div class="arch-arrow">→</div>
+                <div class="arch-card glass-card">
+                    <div class="arch-icon">🧱</div>
+                    <div class="arch-label">4× Residual</div>
+                    <div class="arch-detail">Skip connections<br><span class="text-muted">BN + Dropout(0.2)</span></div>
+                </div>
+                <div class="arch-arrow">→</div>
+                <div class="arch-card glass-card">
+                    <div class="arch-icon">📤</div>
+                    <div class="arch-label">Output</div>
+                    <div class="arch-detail">578 values<br><span class="text-muted">289 BIBC + 289 BCBV</span></div>
+                </div>
+            </div>
+            <div class="arch-details-row">
+                <div class="arch-detail-chip glass-card"><strong>Optimizer:</strong> AdamW (lr=1e-3)</div>
+                <div class="arch-detail-chip glass-card"><strong>BIBC Loss:</strong> BCEWithLogits</div>
+                <div class="arch-detail-chip glass-card"><strong>BCBV Loss:</strong> MSE</div>
+                <div class="arch-detail-chip glass-card"><strong>Scheduler:</strong> ReduceLROnPlateau</div>
+                <div class="arch-detail-chip glass-card"><strong>Epochs:</strong> 300</div>
+            </div>
+        </section>
+    </main>
+
+    <!-- ─── Footer ────────────────────────────────────────── -->
+    <footer>
+        <div class="footer-content">
+            <p class="footer-title">🎓 MNIT Jaipur — Industrial Internship Project</p>
+            <p class="footer-sub">Deep Learning for Distribution Network Topology Identification using BIBC/BCBV Matrices</p>
+        </div>
+    </footer>
+
+    <!-- External Libraries -->
+    <script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
+    <script src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
+    <script src="{{ url_for('static', filename='js/app.js') }}"></script>
+</body>
+</html>
